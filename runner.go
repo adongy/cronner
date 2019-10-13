@@ -77,9 +77,24 @@ func handleCommand(hndlr *cmdHandler) (int, []byte, float64, error) {
 	setEnv(hndlr)
 	defer unsetEnv()
 
+	tags := []string{}
+
+	if len(hndlr.opts.Group) > 0 {
+		tags = append(tags, fmt.Sprintf("cronner_group:%s", hndlr.opts.Group))
+	}
+
+	if hndlr.opts.Parent && len(hndlr.parentMetricTags) > 0 {
+		tags = append(tags, hndlr.parentMetricTags...)
+	}
+
+	if len(hndlr.opts.Tags) > 0 {
+		tags = append(tags, hndlr.opts.Tags...)
+	}
+
 	if hndlr.opts.AllEvents {
 		// emit a DD event to indicate we are starting the job
 		emitEvent(fmt.Sprintf("Cron %v starting on %v", hndlr.opts.Label, hndlr.hostname), fmt.Sprintf("UUID: %v\n", hndlr.uuid), hndlr.opts.Label, "info", hndlr)
+		hndlr.gs.Incr(fmt.Sprintf("%v.launches", hndlr.opts.Label), tags)
 	}
 
 	// set up the output buffers for the command
@@ -235,20 +250,6 @@ func handleCommand(hndlr *cmdHandler) (int, []byte, float64, error) {
 	}
 
 	// emit the metric for how long it took us and return code
-	tags := []string{}
-
-	if len(hndlr.opts.Group) > 0 {
-		tags = append(tags, fmt.Sprintf("cronner_group:%s", hndlr.opts.Group))
-	}
-
-	if hndlr.opts.Parent && len(hndlr.parentMetricTags) > 0 {
-		tags = append(tags, hndlr.parentMetricTags...)
-	}
-
-	if len(hndlr.opts.Tags) > 0 {
-		tags = append(tags, hndlr.opts.Tags...)
-	}
-
 	hndlr.gs.Timing(fmt.Sprintf("%v.time", hndlr.opts.Label), monotonicRtMs, tags)
 	hndlr.gs.Gauge(fmt.Sprintf("%v.exit_code", hndlr.opts.Label), float64(ret), tags)
 
